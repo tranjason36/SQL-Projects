@@ -1,0 +1,550 @@
+Appendix A: Create relational tables
+CREATE TABLE INGREDIENT ( 
+IngredientID INT NOT NULL IDENTITY PRIMARY KEY,  
+IngredientName VARCHAR(50) NOT NULL, 
+Quantity INT NOT NULL 
+); 
+-- 
+CREATE TABLE PRODUCT (  
+ProductID INT NOT NULL IDENTITY PRIMARY KEY,  
+ProductName VARCHAR(50) NOT NULL, 
+ProductCategory VARCHAR(50) NOT NULL, 
+ProductDescription VARCHAR(500), 
+CurrentUnitPrice DECIMAL(5,2) DEFAULT 0, 
+InventoryStatus VARCHAR(25) NOT NULL 
+); 
+-- 
+CREATE TABLE USES( 
+IngredientID INT NOT NULL FOREIGN KEY REFERENCES INGREDIENT(IngredientID), 
+ProductID INT NOT NULL FOREIGN KEY REFERENCES PRODUCT(ProductID) 
+); 
+-- 
+CREATE TABLE FOODORDER (  
+OrderID INT NOT NULL IDENTITY PRIMARY KEY, 
+PaymentType VARCHAR(25) NOT NULL, 
+Subtotal DECIMAL(10,2) NOT NULL, 
+TaxAmount DECIMAL(5,2) DEFAULT 0, 
+TipAmount DECIMAL(3,2) DEFAULT 0, 
+OrderTotal DECIMAL(10,2) NOT NULL, 
+OrderDate DATE NOT NULL, 
+OrderTime TIME NOT NULL  
+); 
+-- 
+CREATE TABLE ORDERLINEITEM( 
+OrderLineNumber INT NOT NULL IDENTITY, 
+OrderID INT NOT NULL FOREIGN KEY REFERENCES FOODORDER(OrderID), 
+ProductID INT NOT NULL FOREIGN KEY REFERENCES PRODUCT(ProductID), 
+UnitPrice DECIMAL(5,2) DEFAULT 0, 
+Quantity INT NOT NULL 
+PRIMARY KEY (OrderLineNumber, OrderID) 
+); 
+
+Appendix B: Insert values into relational tables
+--Populating INGREDIENT table.  
+INSERT INTO INGREDIENT (IngredientName, Quantity)  
+Values 
+('Beyond Meat', 1), ('Soyrizo', 1), ('Chipotle Peppers', 1), ('Roma Tomato', 1),  
+('Onion', 1), ('Cilantro', 1), ('Lime', 1), ('Avocado', 1), ('Queso Fresco', 1),  
+('Pinto Beans', 1), ('White Rice', 1), ('Flour Tortilla', 12), ('Corn Tortilla', 20),  
+('Soda', 24), ('Horchata', 12);  
+-- 
+--Populating PRODUCT table  
+INSERT INTO PRODUCT (ProductName, ProductCategory, ProductDescription, CurrentUnitPrice, InventoryStatus)  
+Values  
+('Taco', 'Food', 'Taco consists of a protein, a vegetable and a cheese filling in a corn tortilla', 3.00, 'Available'),  
+('Burrito', 'Food', 'Burrito consists of 2 protein, vegetable, cheese, avocado, beans and rice fillings in a flour tortilla', 4.00, 'Available'),  
+('Horchata', 'Drink', 'Horchata bought in a 12 count pack, not made', 2.00, 'Available'),  
+('Soda', 'Drink', 'Soda bought in a 24 pack, not made', 1.00, 'Available'),  
+('Serving Plate','Service','Plate to serve food on', 0.00, 'Available'),  
+('Napkin', 'Service', 'Napkin to go with each purchase', 0.00, 'Available');  
+-- 
+--Populating USES table  
+INSERT INTO USES (ProductID, IngredientID) 
+Values  
+(1,1), (1,2), (1,3), (1,4), (1,5), (1,6), (1,7), (1,9), (1,13),  
+(2,1), (2,2), (2,3), (2,4), (2,5), (2,6), (2,7), (2,8), (2,9), (2,10), (2,11), (2,12),  
+(3,14), (4,15);  
+
+--Import excel wb
+--https://www.youtube.com/watch?v=iGzBgd0qwT4
+ 
+--Initialize variables 
+DECLARE @OrderDate DATE,
+@OrderTime TIME,
+@TacoQuantity INT,
+@BurritoQuantity INT,
+@SodaQuantity INT,
+@HorchataQuantity INT,
+@PaymentType VARCHAR(25),
+@Subtotal DECIMAL(10,2),
+@TaxAmount DECIMAL(10,2),
+@TipAmount DECIMAL(10,2),
+@OrderTotal DECIMAL(10,2)		
+ 
+--Declare Cursor
+DECLARE load_cursor CURSOR FOR
+SELECT * FROM SampleData
+--Open the Cursor
+OPEN load_cursor
+--Fetch record from the cursor
+FETCH NEXT FROM load_cursor INTO @OrderDate, @OrderTime, @TacoQuantity, @BurritoQuantity, @SodaQuantity, @HorchataQuantity,
+@PaymentType, @Subtotal, @TaxAmount, @TipAmount, @OrderTotal		
+ 
+--Check status for the cursor
+WHILE @@FETCH_STATUS = 0
+BEGIN
+--add data to FOODORDER table
+INSERT INTO FOODORDER (PaymentType, Subtotal, TaxAmount, TipAmount, OrderTotal, OrderDate, OrderTime) 
+VALUES 
+(@PaymentType, @Subtotal, @TaxAmount, @TipAmount, @OrderTotal, @OrderDate, @OrderTime);
+ 
+--add data to ORDERLINEITEM table
+IF (@TacoQuantity > 0)
+BEGIN	
+INSERT INTO ORDERLINEITEM (OrderID, ProductID, UnitPrice, Quantity)
+VALUES (IDENT_CURRENT('FOODORDER'), 1, @TacoQuantity*3, @TacoQuantity)
+END
+IF (@BurritoQuantity > 0)
+BEGIN
+INSERT INTO ORDERLINEITEM (OrderID, ProductID, UnitPrice, Quantity)
+VALUES (IDENT_CURRENT('FOODORDER'), 2, @BurritoQuantity*4, @BurritoQuantity)
+END
+IF (@HorchataQuantity > 0)
+BEGIN
+INSERT INTO ORDERLINEITEM (OrderID, ProductID, UnitPrice, Quantity)
+VALUES (IDENT_CURRENT('FOODORDER'), 3, @HorchataQuantity*2, @HorchataQuantity)
+END
+IF (@SodaQuantity > 0)
+BEGIN
+INSERT INTO ORDERLINEITEM (OrderID, ProductID, UnitPrice, Quantity)
+VALUES (IDENT_CURRENT('FOODORDER'), 4, @SodaQuantity, @SodaQuantity)
+END
+ 
+ 
+--Reset OrderLineNumber 
+DBCC CHECKIDENT ('ORDERLINEITEM', RESEED, 0)
+--Fetch the next record from the cursor
+FETCH NEXT FROM load_cursor INTO @OrderDate, @OrderTime, @TacoQuantity, @BurritoQuantity, @SodaQuantity, @HorchataQuantity,
+@PaymentType, @Subtotal, @TaxAmount, @TipAmount, @OrderTotal			
+END
+ 
+CLOSE load_cursor
+DEALLOCATE load_cursor
+GO
+
+
+Appendix C: SQL to create analytical tables
+CREATE TABLE DIM_INVENTORY(  
+Inventory_KEY INT NOT NULL PRIMARY KEY IDENTITY,  
+InventoryDate DATE, 
+ProteinQty INT,  
+VegetableQty INT,  
+AvocadoQty INT,  
+CheeseQty INT,  
+BeanQty INT,  
+RiceQty INT,  
+CornQty INT,  
+FlourQty INT,  
+SodaQty INT,  
+HorchataQty INT  
+);  
+-- 
+CREATE TABLE DIM_CALENDAR(  
+Calendar_KEY INT NOT NULL PRIMARY KEY IDENTITY,  
+OrderDate Date,  
+OrderDay INT,  
+OrderWeek INT,  
+OrderMonth Varchar(20),  
+OrderTime TIME  
+);  
+-- 
+CREATE TABLE DIM_PRODUCT(  
+Product_KEY INT NOT NULL PRIMARY KEY IDENTITY,  
+ProductID INT,  
+ProductName varchar(30),  
+SalePrice MONEY,  
+InventoryStatus varchar(20),  
+UnitPrice MONEY,  
+Quantity INT, 
+OrderID INT 
+);  
+--  
+CREATE TABLE DIM_ORDER(  
+Order_KEY INT NOT NULL PRIMARY KEY IDENTITY,  
+OrderID INT,   
+SubTotal MONEY 
+);  
+-- 
+CREATE TABLE FACT_SALE(  
+Order_KEY INT,  
+Inventory_KEY INT,  
+Calendar_KEY INT,  
+Product_KEY INT,   
+DollarsSold MONEY,  
+QuantitySold INT,   
+FOREIGN KEY (Order_KEY) REFERENCES DIM_ORDER(Order_KEY),  
+FOREIGN KEY (Inventory_KEY) REFERENCES DIM_INVENTORY(Inventory_KEY),   
+FOREIGN KEY (Calendar_KEY) REFERENCES DIM_CALENDAR(Calendar_KEY),   
+FOREIGN KEY (Product_KEY) REFERENCES DIM_PRODUCT(Product_KEY)   
+);  
+
+Appendix D: Full insert statement for inserting inventory data into analytical database
+INSERT INTO DIM_INVENTORY (InventoryDate,ProteinQty,VegetableQty,AvocadoQty,CheeseQty,BeanQty,RiceQty,CornQty,FlourQty,SodaQty,HorchataQty)
+VALUES
+     ('2023-08-13',400,200,100,150,150,150,180,120,120,144),
+     ('2023-08-14',358,172,86,122,136,136,166,106,109,128),
+     ('2023-08-15',331,155,76,405,126,126,159,96,101,118),
+     ('2023-08-16',307,138,69,388,119,119,149,233,93,109),
+     ('2023-08-17',284,479,65,369,115,115,134,229,232,103),
+     ('2023-08-18',264,462,62,352,112,112,420,226,210,76),
+     ('2023-08-21',243,447,56,337,106,106,411,220,202,191),
+     ('2023-08-22',225,436,49,326,99,99,407,213,192,184),
+     ('2023-08-23',210,425,45,315,95,95,400,209,185,169),
+     ('2023-08-24',183,408,155,298,325,325,393,199,168,169),
+     ('2023-08-25',160,392,148,282,318,318,384,192,160,163),
+     ('2023-08-28',128,369,139,259,309,309,370,183,149,140),
+     ('2023-08-29',514,358,136,248,306,306,362,180,131,131),
+     ('2023-08-30',472,332,120,222,290,290,352,164,119,115),
+     ('2023-08-31',449,316,113,206,283,283,343,157,105,109),
+     ('2023-09-01',426,295,111,185,281,281,324,155,97,102),
+     ('2023-09-05',381,261,100,151,270,270,301,144,228,89),
+     ('2023-09-06',325,218,87,108,257,257,271,131,207,197),
+     ('2023-09-07',288,187,81,377,251,251,246,125,193,190),
+     ('2023-09-08',244,154,70,344,240,240,224,114,178,186),
+     ('2023-09-11',166,97,49,287,219,219,188,93,158,168),
+     ('2023-09-12',115,423,32,253,202,202,171,220,145,160),
+     ('2023-09-13',478,397,141,227,191,191,156,209,135,156),
+     ('2023-09-14',415,353,122,183,172,172,131,190,114,141),
+     ('2023-09-15',336,294,102,124,152,152,392,170,99,132),
+     ('2023-09-18',292,259,93,389,143,143,366,161,82,129),
+     ('2023-09-19',202,190,72,320,122,122,318,140,200,116),
+     ('2023-09-20',151,151,60,281,110,110,291,128,191,104),
+     ('2023-09-21',86,101,45,231,95,95,256,113,179,90),
+     ('2023-09-22',420,411,149,181,319,319,222,97,159,193),
+     ('2023-09-25',349,362,127,132,297,297,195,219,144,181),
+     ('2023-09-26',316,339,117,409,287,287,182,209,136,177),
+     ('2023-09-27',288,320,108,390,278,278,172,200,131,169),
+     ('2023-09-28',236,285,91,355,261,261,154,183,115,159),
+     ('2023-09-29',197,255,82,325,252,252,133,174,107,150),
+     ('2023-10-02',64,159,45,229,215,215,374,137,69,92),
+     ('2023-10-03',423,129,154,199,204,204,355,126,191,194),
+     ('2023-10-04',264,388,96,98,146,146,312,68,161,127),
+     ('2023-10-05',151,317,54,327,104,104,283,170,110,95),
+     ('2023-10-06',70,260,30,270,80,80,250,146,83,195),
+     ('2023-10-09',392,200,132,210,302,302,208,128,193,167),
+     ('2023-10-10',204,77,67,87,237,237,150,63,139,97),
+     ('2023-10-11',140,390,50,340,220,220,120,190,108,189),
+     ('2023-10-12',474,341,33,291,203,203,388,173,77,140),
+     ('2023-10-13',377,278,119,228,169,169,359,139,188,117),
+     ('2023-10-16',245,194,71,144,121,121,323,91,126,80),
+     ('2023-10-17',159,140,39,390,89,89,301,203,95,168),
+     ('2023-10-18',3,389,114,279,284,284,235,158,168,109),
+     ('2023-10-19',278,305,73,195,243,243,192,117,131,82),
+     ('2023-10-20',211,265,46,155,216,216,179,90,105,183),
+     ('2023-10-23',107,188,139,78,189,189,129,207,53,146),
+     ('2023-10-24',385,107,98,297,148,148,389,166,134,98),
+     ('2023-10-25',269,394,55,224,105,105,359,123,81,186),
+     ('2023-10-26',148,313,15,143,65,65,318,83,174,140),
+     ('2023-10-27',376,194,82,324,252,252,252,174,121,102),
+     ('2023-10-30',255,121,34,251,204,204,227,126,86,62),
+     ('2023-10-31',129,396,113,166,163,163,183,85,156,133),
+     ('2023-11-01',413,318,75,88,125,125,143,191,137,117),
+     ('2023-11-06',232,199,13,269,63,63,386,129,97,96),
+     ('2023-11-07',78,93,85,163,255,255,328,81,210,190),
+     ('2023-11-08',259,297,22,7,192,192,235,162,158,144),
+     ('2023-11-09',65,166,79,176,129,129,167,99,117,107),
+     ('2023-11-13',296,45,31,55,81,81,94,51,72,77),
+     ('2023-11-14',133,292,101,242,271,271,331,145,187,171),
+     ('2023-11-15',307,129,38,79,208,208,231,82,134,124),
+     ('2023-11-16',121,363,98,253,148,148,165,166,95,85),
+     ('2023-11-17',445,313,72,203,122,122,141,140,217,181),
+     ('2023-11-27',265,186,19,76,69,69,367,87,175,147),
+     ('2023-11-28',105,76,89,266,259,259,307,181,142,127),
+     ('2023-11-29',302,285,37,115,207,207,208,129,106,92),
+     ('2023-11-30',127,164,103,294,153,153,141,75,78,187),
+     ('2023-12-01',458,109,89,239,139,139,400,205,200,165),
+     ('2023-12-04',222,291,31,61,81,81,280,147,127,123),
+     ('2023-12-05',2,133,89,203,259,259,184,85,67,90),
+     ('2023-12-06',140,290,30,0,200,200,40,170,144,161),
+     ('2023-12-07',288,113,75,123,125,125,238,95,84,110),
+     ('2023-12-08',194,410,44,360,94,94,206,208,202,79),
+     ('2023-12-11',69,318,131,268,301,301,147,175,136,133),
+     ('2023-12-12',271,180,71,130,241,241,369,115,47,44),
+     ('2023-12-13',62,42,0,292,170,170,302,44,129,73),
+     ('2023-12-14',111,137,34,27,84,84,123,102,20,95),
+     ('2023-12-15',382,408,114,238,284,284,374,62,134,195),
+     ('2023-12-16',253,319,74,149,244,244,325,22,104,175);
+
+Appendix E: What days and times were the best sales during the week and month?  
+-- Best sales days and times for each WEEK
+WITH TopWeeklySales AS (
+SELECT cal.OrderWeek,
+CASE 
+WHEN DATEPART(dw, cal.OrderDate) = 1 THEN 'Sunday'
+WHEN DATEPART(dw, cal.OrderDate) = 2 THEN 'Monday'
+WHEN DATEPART(dw, cal.OrderDate) = 3 THEN 'Tuesday'
+WHEN DATEPART(dw, cal.OrderDate) = 4 THEN 'Wednesday'
+WHEN DATEPART(dw, cal.OrderDate) = 5 THEN 'Thursday'
+WHEN DATEPART(dw, cal.OrderDate) = 6 THEN 'Friday'
+WHEN DATEPART(dw, cal.OrderDate) = 7 THEN 'Saturday'
+END as OrderDay, 
+DATEPART(hour, cal.OrderTime) AS OrderHour, SUM(fs.DollarsSold) AS TotalSales,
+ROW_NUMBER() OVER(PARTITION BY cal.OrderWeek ORDER BY SUM(fs.DollarsSold) DESC) as RowNumber
+FROM FACT_SALE fs, DIM_CALENDAR cal
+WHERE fs.Calendar_KEY = cal.Calendar_KEY
+GROUP BY cal.OrderWeek, DATEPART(dw, cal.OrderDate), DATEPART(hour, cal.OrderTime))
+SELECT OrderWeek, OrderDay, OrderHour, TotalSales
+FROM TopWeeklySales
+WHERE RowNumber = 1;
+
+-- Best sales days and times for each MONTH
+WITH TopMonthlySales AS (
+SELECT cal.OrderMonth,
+CASE 
+WHEN DATEPART(dw, cal.OrderDate) = 1 THEN 'Sunday'
+WHEN DATEPART(dw, cal.OrderDate) = 2 THEN 'Monday'
+WHEN DATEPART(dw, cal.OrderDate) = 3 THEN 'Tuesday'
+WHEN DATEPART(dw, cal.OrderDate) = 4 THEN 'Wednesday'
+WHEN DATEPART(dw, cal.OrderDate) = 5 THEN 'Thursday'
+WHEN DATEPART(dw, cal.OrderDate) = 6 THEN 'Friday'
+WHEN DATEPART(dw, cal.OrderDate) = 7 THEN 'Saturday'
+END as OrderDay, 
+DATEPART(hour, cal.OrderTime) AS OrderHour, SUM(fs.DollarsSold) AS TotalSales,
+ROW_NUMBER() OVER(PARTITION BY cal.OrderMonth ORDER BY SUM(fs.DollarsSold) DESC) as RowNumber
+FROM FACT_SALE fs, DIM_CALENDAR cal
+WHERE fs.Calendar_KEY = cal.Calendar_KEY
+GROUP BY cal.OrderMonth, DATEPART(dw, cal.OrderDate), DATEPART(hour, cal.OrderTime))
+SELECT OrderMonth, OrderDay, OrderHour, TotalSales
+FROM TopMonthlySales
+WHERE RowNumber = 1;
+
+Appendix F: What menu items (food and drink) were the top sellers each day and each week?
+-- Top selling menu items each DAY
+WITH TopDailySales AS (
+SELECT cal.OrderDate, prod.ProductName, SUM(fs.QuantitySold) AS TotalQuantitySold,
+ROW_NUMBER() OVER(PARTITION BY cal.OrderDate ORDER BY SUM(fs.QuantitySold) DESC) as RowNumber
+FROM FACT_SALE fs, DIM_CALENDAR cal, DIM_PRODUCT prod
+WHERE fs.Calendar_KEY = cal.Calendar_KEY AND fs.Product_KEY = prod.Product_KEY
+GROUP BY cal.OrderDate, prod.ProductName )
+SELECT OrderDate, ProductName, TotalQuantitySold
+FROM TopDailySales
+WHERE RowNumber = 1;
+
+-- Top selling menu items each WEEK
+WITH TopWeeklySales AS (
+SELECT cal.OrderWeek, prod.ProductName,  SUM(fs.QuantitySold) AS TotalQuantitySold,
+ROW_NUMBER() OVER(PARTITION BY cal.OrderWeek ORDER BY SUM(fs.QuantitySold) DESC) as RowNumber
+FROM FACT_SALE fs, DIM_CALENDAR cal, DIM_PRODUCT prod 
+WHERE fs.Calendar_KEY = cal.Calendar_KEY AND fs.Product_KEY = prod.Product_KEY 
+GROUP BY cal.OrderWeek, prod.ProductName )
+SELECT OrderWeek, ProductName, TotalQuantitySold
+FROM TopWeeklySales
+WHERE  RowNumber = 1;
+
+Appendix G: What was the daily sales revenue for operations? Weekly sales revenue for the operations? 
+--daily sales revenue
+SELECT OrderDate, SUM(DollarsSold) AS "Daily Sales Revenue"
+FROM FACT_SALE fs, DIM_CALENDAR cal, DIM_ORDER ord
+WHERE fs.Calendar_KEY = cal.Calendar_KEY AND fs.Order_KEY = ord.Order_KEY 
+GROUP BY OrderDate
+ORDER BY OrderDate;
+
+--weekly sales revenue 
+SELECT OrderWeek, SUM(DollarsSold) AS "Weekly Sales Revenue"
+FROM FACT_SALE fs, DIM_CALENDAR cal, DIM_ORDER ord
+WHERE fs.Calendar_KEY = cal.Calendar_KEY AND fs.Order_KEY = ord.Order_KEY 
+GROUP BY OrderWeek
+ORDER BY OrderWeek;
+
+Appendix H: What is the average inventory turnover daily and weekly? Is there any waste or loss that needs to be addressed?
+-- DAILY TURNOVER
+-- Create a table that contains the quantity purchased for each day using IIF statements to return 0 if that item was re-stocked
+WITH BOUGHT AS (
+SELECT DISTINCT DI1.Inventory_KEY, DI1.InventoryDate, C.Order_Week, 
+IIF((DI2.ProteinQty - DI1.ProteinQty) < 0, (DI2.ProteinQty - DI1.ProteinQty), 0) as ProteinSold, 
+IIF((DI2.VegetableQty - DI1.VegetableQty) < 0, (DI2.VegetableQty - DI1.VegetableQty), 0) as VegetableSold,
+IIF((DI2.AvocadoQty - DI1.AvocadoQty) < 0, (DI2.AvocadoQty - DI1.AvocadoQty), 0) as AvocadoSold, 
+IIF((DI2.CheeseQty - DI1.CheeseQty) < 0, (DI2.CheeseQty - DI1.CheeseQty), 0) as CheeseSold, 
+IIF((DI2.BeanQty - DI1.BeanQty) < 0, (DI2.BeanQty - DI1.BeanQty), 0) as BeanSold,
+IIF((DI2.RiceQty - DI1.RiceQty) < 0, (DI2.RiceQty - DI1.RiceQty), 0) as RiceSold, 
+IIF((DI2.CornQty - DI1.CornQty) < 0, (DI2.CornQty - DI1.CornQty), 0) as CornSold, 
+IIF((DI2.FlourQty - DI1.FlourQty) < 0, (DI2.FlourQty - DI1.FlourQty), 0) as FlourSold,
+IIF((DI2.SodaQty - DI1.SodaQty) < 0, (DI2.SodaQty - DI1.SodaQty), 0) as SodaSold, 
+IIF((DI2.HorchataQty - DI1.HorchataQty) < 0, (DI2.HorchataQty - DI1.HorchataQty), 0) as HorchataSold
+FROM DIM_INVENTORY DI1, DIM_INVENTORY DI2, DIM_CALENDAR C
+WHERE DI1.Inventory_KEY = (DI2.Inventory_KEY - 1) AND C.Order_Date = DI1.InventoryDate
+)
+
+-- Query for the average amount of each inventory item sold each day
+SELECT AVG(ProteinSold) as AVG_Protein_Turnover_Daily, AVG(VegetableSold) as AVG_Vegetable_Turnover_Daily,
+AVG(AvocadoSold) as AVG_Avocado_Turnover_Daily, AVG(CheeseSold) as AVG_Cheese_Turnover_Daily, 
+AVG(BeanSold) as AVG_Bean_Turnover_Daily, AVG(RiceSold) as AVG_Rice_Turnover_Daily, 
+AVG(CornSold) as AVG_CornT_Turnover_Daily, AVG(FlourSold) as AVG_FlourT_Turnover_Daily,
+AVG(SodaSold) as AVG_Soda_Turnover_Daily, AVG(HorchataSold) as AVG_Horchata_Turnover_Daily
+FROM BOUGHT;
+
+-- WEEKLY TURNOVER
+-- Create a table that contains the quantity of each ingredient purchased for the week
+WITH BOUGHTW AS (
+SELECT DISTINCT DI1.InventoryDate, C.Order_Week, 
+IIF((DI2.ProteinQty - DI1.ProteinQty) < 0, (DI2.ProteinQty - DI1.ProteinQty), 0) as ProteinSold, 
+IIF((DI2.VegetableQty - DI1.VegetableQty) < 0, (DI2.VegetableQty - DI1.VegetableQty), 0) as VegetableSold,
+IIF((DI2.AvocadoQty - DI1.AvocadoQty) < 0, (DI2.AvocadoQty - DI1.AvocadoQty), 0) as AvocadoSold, 
+IIF((DI2.CheeseQty - DI1.CheeseQty) < 0, (DI2.CheeseQty - DI1.CheeseQty), 0) as CheeseSold, 
+IIF((DI2.BeanQty - DI1.BeanQty) < 0, (DI2.BeanQty - DI1.BeanQty), 0) as BeanSold,
+IIF((DI2.RiceQty - DI1.RiceQty) < 0, (DI2.RiceQty - DI1.RiceQty), 0) as RiceSold, 
+IIF((DI2.CornQty - DI1.CornQty) < 0, (DI2.CornQty - DI1.CornQty), 0) as CornSold, 
+IIF((DI2.FlourQty - DI1.FlourQty) < 0, (DI2.FlourQty - DI1.FlourQty), 0) as FlourSold,
+IIF((DI2.SodaQty - DI1.SodaQty) < 0, (DI2.SodaQty - DI1.SodaQty), 0) as SodaSold, 
+IIF((DI2.HorchataQty - DI1.HorchataQty) < 0, (DI2.HorchataQty - DI1.HorchataQty), 0) as HorchataSold
+FROM DIM_INVENTORY DI1, DIM_INVENTORY DI2, DIM_CALENDAR C
+WHERE DI1.Inventory_KEY = (DI2.Inventory_KEY - 1) AND C.Order_Date = DI1.InventoryDate
+),
+
+-- Use another temporary table to hold the sums for each week since multiple aggregate functions cannot be used in a single statement
+BOUGHTW2 AS(
+SELECT Order_Week, SUM(ProteinSold) as PS, SUM(VegetableSold) as VS, SUM(AvocadoSold) as AvS,
+SUM(CheeseSold) as CS, SUM(BeanSold) as BS, SUM(RiceSold) as RS, SUM(CornSold) as CtS,
+SUM(FlourSold) as FS, SUM(SodaSold) as SS, SUM(HorchataSold) as HS
+FROM BOUGHTW GROUP BY Order_Week
+)
+ 
+-- Query for the average amount of each inventory item sold each week
+SELECT AVG(PS) as AVG_Protein_Turnover_Weekly, AVG(VS) as AVG_Vegetable_Turnover_Weekly,
+AVG(AvS) as AVG_Avocado_Turnover_Weekly, AVG(CS) as AVG_Cheese_Turnover_Weekly, 
+AVG(BS) as AVG_Bean_Turnover_Weekly, AVG(RS) as AVG_Rice_Turnover_Weekly, 
+AVG(CtS) as AVG_CornT_Turnover_Weekly, AVG(FS) as AVG_FlourT_Turnover_Weekly,
+AVG(SS) as AVG_Soda_Turnover_Weekly, AVG(HS) as AVG_Horchata_Turnover_Weekly
+FROM BOUGHTW2;
+
+Appendix I: How much has grocery supplies varied each day, week, and monthly over the semester?
+--DAILY GROCERY PURCHASES
+-- Create a table that contains the quantity purchased for each day using IIF statements to return 0 if that item was not re-stocked
+WITH BOUGHT AS (
+SELECT DISTINCT DI1.Inventory_KEY, DI1.InventoryDate, C.Order_Week, 
+IIF((DI2.ProteinQty - DI1.ProteinQty) > 0, (DI2.ProteinQty - DI1.ProteinQty) * 1.29, 0) as ProteinBought, 
+IIF((DI2.VegetableQty - DI1.VegetableQty) > 0, (DI2.VegetableQty - DI1.VegetableQty) * 0.12, 0) as VegetableBought,
+IIF((DI2.AvocadoQty - DI1.AvocadoQty) > 0, (DI2.AvocadoQty - DI1.AvocadoQty) * 0.22, 0) as AvocadoBought, 
+IIF((DI2.CheeseQty - DI1.CheeseQty) > 0, (DI2.CheeseQty - DI1.CheeseQty) * 0.1, 0) as CheeseBought, 
+IIF((DI2.BeanQty - DI1.BeanQty) > 0, (DI2.BeanQty - DI1.BeanQty) * 0.06, 0) as BeanBought,
+IIF((DI2.RiceQty - DI1.RiceQty) > 0, (DI2.RiceQty - DI1.RiceQty) * 0.04, 0) as RiceBought, 
+IIF((DI2.CornQty - DI1.CornQty) > 0, (DI2.CornQty - DI1.CornQty) * 0.1, 0) as CornBought, 
+IIF((DI2.FlourQty - DI1.FlourQty) > 0, (DI2.FlourQty - DI1.FlourQty) * 0.21, 0) as FlourBought,
+IIF((DI2.SodaQty - DI1.SodaQty) > 0, (DI2.SodaQty - DI1.SodaQty) * 0.49, 0) as SodaBought, 
+IIF((DI2.HorchataQty - DI1.HorchataQty) > 0, (DI2.HorchataQty - DI1.HorchataQty) * 0.71, 0) as HorchataBought
+FROM DIM_INVENTORY DI1, DIM_INVENTORY DI2, DIM_CALENDAR C
+WHERE DI1.Inventory_KEY = (DI2.Inventory_KEY - 1) AND C.Order_Date = DI1.InventoryDate
+)
+
+-- Use the Price Per Quantity information from the Inventory.xlsx spreadsheet to determine the price paid each day for re-stocking
+SELECT B.InventoryDate, B.Order_Week as Calendar_Week, (B.ProteinBought + B.VegetableBought + B.AvocadoBought + B.CheeseBought + 
+B.BeanBought  + B.RiceBought + B.CornBought + B.FlourBought + B.SodaBought + B.HorchataBought) AS DailyPurchaseAmount
+FROM BOUGHT B
+ORDER BY B.InventoryDate;
+
+
+--WEEKLY GROCERY PURCHASES
+-- WEEKLY totals for grocery purchases start by calculating the daily amount purchased as BOUGHT:
+WITH BOUGHT AS (
+SELECT DISTINCT DI1.Inventory_KEY, DI1.InventoryDate, C.Order_Week, IIF((DI2.ProteinQty - DI1.ProteinQty) > 0, (DI2.ProteinQty - DI1.ProteinQty) * 1.29, 0) as ProteinBought, 
+IIF((DI2.VegetableQty - DI1.VegetableQty) > 0, (DI2.VegetableQty - DI1.VegetableQty) * 0.12, 0) as VegetableBought,
+IIF((DI2.AvocadoQty - DI1.AvocadoQty) > 0, (DI2.AvocadoQty - DI1.AvocadoQty) * 0.22, 0) as AvocadoBought, 
+IIF((DI2.CheeseQty - DI1.CheeseQty) > 0, (DI2.CheeseQty - DI1.CheeseQty) * 0.1, 0) as CheeseBought, 
+IIF((DI2.BeanQty - DI1.BeanQty) > 0, (DI2.BeanQty - DI1.BeanQty) * 0.06, 0) as BeanBought,
+IIF((DI2.RiceQty - DI1.RiceQty) > 0, (DI2.RiceQty - DI1.RiceQty) * 0.04, 0) as RiceBought, 
+IIF((DI2.CornQty - DI1.CornQty) > 0, (DI2.CornQty - DI1.CornQty) * 0.1, 0) as CornBought, 
+IIF((DI2.FlourQty - DI1.FlourQty) > 0, (DI2.FlourQty - DI1.FlourQty) * 0.21, 0) as FlourBought,
+IIF((DI2.SodaQty - DI1.SodaQty) > 0, (DI2.SodaQty - DI1.SodaQty) * 0.49, 0) as SodaBought, 
+IIF((DI2.HorchataQty - DI1.HorchataQty) > 0, (DI2.HorchataQty - DI1.HorchataQty) * 0.71, 0) as HorchataBought
+FROM DIM_INVENTORY DI1, DIM_INVENTORY DI2, DIM_CALENDAR C
+WHERE DI1.Inventory_KEY = (DI2.Inventory_KEY - 1) AND C.Order_Date = DI1.InventoryDate
+)
+
+-- Now query the sum of grocery purchases for each week:
+SELECT DISTINCT B.Order_Week, (SUM(B.ProteinBought) + SUM(B.VegetableBought) + SUM(B.AvocadoBought) + SUM(B.CheeseBought) + 
+SUM(B.BeanBought)  + SUM(B.RiceBought) + SUM(B.CornBought) + SUM(B.FlourBought) + SUM(B.SodaBought) + SUM(B.HorchataBought)) AS WeeklyPurchaseAmount
+FROM BOUGHT B
+GROUP BY B.Order_Week;
+
+Appendix J: What menu items were bought most frequently together?
+SELECT TOP 1 P1.ProductName AS ‘Item 1’, P2.ProductName AS ‘Item 2’, COUNT(*) as Frequency
+FROM FACT_SALE AS S1, FACT_SALE AS S2, DIM_PRODUCT AS P1, DIM_PRODUCT AS P2 
+WHERE S1.Order_KEY = S2.Order_KEY
+AND P1.ProductName < P2.ProductName
+AND S1.Product_KEY = P1.Product_KEY
+AND S2.Product_KEY = P2.Product_KEY
+GROUP BY P1.ProductName, P2.ProductName
+ORDER BY Frequency DESC; 
+
+Appendix K: Which food item was most purchased during these university event dates?
+--GetTotal Function 
+DROP FUNCTION IF EXISTS GetTotal;
+CREATE FUNCTION GetTotal (@StartDate Date, @EndDate Date)
+RETURNS TABLE
+RETURN
+(SELECT ProductName, SUM(Quantity) AS 'Total Purchased'
+FROM FACT_SALE	fs, DIM_PRODUCT AS prod1, DIM_CALENDAR AS cal
+WHERE 
+fs.Product_KEY = prod1.Product_KEY AND 
+fs.Calendar_KEY = cal.Calendar_KEY AND
+cal.OrderDate BETWEEN @StartDate AND @EndDate AND
+ProductName <> 'Soda' AND 
+ProductName <> 'Horchata'
+GROUP BY ProductName);
+ 
+--Week of Welcome: August 14th -18th 
+SELECT TOP 1 * FROM GetTotal('2023-08-14','2023-08-18')
+ORDER BY 'Total Purchased' DESC;
+--First Day: August 21st 
+SELECT TOP 1* FROM GetTotal('2023-08-21','2023-08-21')
+ORDER BY 'Total Purchased' DESC;
+--Student organization Fair: August 30th 
+SELECT TOP 1 * FROM GetTotal('2023-08-30','2023-08-30')
+ORDER BY 'Total Purchased' DESC;
+--Career Fair: October 11th 
+SELECT TOP 1 * FROM GetTotal('2023-10-11','2023-10-11')
+ORDER BY 'Total Purchased' DESC;
+--WSU Vancouver Town Hall: October 24th 
+SELECT TOP 1 * FROM GetTotal('2023-10-24','2023-10-24')
+ORDER BY 'Total Purchased' DESC;
+--End of Semester Celebration: December 8th 
+SELECT TOP 1 * FROM GetTotal('2023-12-24','2023-10-24')
+ORDER BY 'Total Purchased' DESC;
+
+Appendix L: Should we provide different sizes of our food products (Is there a consistent quantity bought associated with a product)?
+SELECT ProductName, QuantitySold, COUNT(*) AS Frequency 
+FROM FACT_SALE, DIM_PRODUCT
+WHERE FACT_SALE.Product_KEY = DIM_PRODUCT.Product_KEY 
+GROUP BY ProductName, QuantitySold 
+ORDER BY ProductName, Frequency DESC;
+
+Appendix M: Would it be beneficial to cater for events? (Would it be beneficial to cater a WSU event with a 10% discount applied to 200 tacos, 100 burritos, and 250 sodas?)
+--Taco
+SELECT TOP 1 ProductName, (CurrentUnitPrice * 200) AS TotalCost, 
+CAST((CurrentUnitPrice * 200 * 0.9) AS DECIMAL(5,2)) AS DiscountedPrice
+FROM DIM_PRODUCT  
+WHERE ProductName = 'taco';  
+
+--Burrito
+SELECT TOP 1 ProductName, (CurrentUnitPrice * 100) AS TotalCost, 
+CAST((CurrentUnitPrice * 100 * 0.9) AS DECIMAL(5,2)) AS DiscountedPrice
+FROM DIM_PRODUCT  
+WHERE ProductName = 'burrito';
+
+--Soda
+SELECT TOP 1 ProductName, (CurrentUnitPrice * 250) AS TotalCost, 
+CAST((CurrentUnitPrice * 250 * 0.9) AS DECIMAL(5,2)) AS DiscountedPrice
+FROM DIM_PRODUCT  
+WHERE ProductName = 'soda';
+
+Appendix N: What is the peak order Date from each month in the semester?
+WITH PeakMonthlyOrders AS ( 
+SELECT cal.OrderMonth, cal.OrderDate, SUM(fs.QuantitySold) AS PeakQuantitySold, 
+ ROW_NUMBER() OVER(PARTITION BY cal.OrderMonth ORDER BY SUM(fs.QuantitySold) DESC) AS row_number  
+FROM FACT_SALE fs, DIM_CALENDAR cal 
+WHERE fs.Calendar_KEY = cal.Calendar_KEY 
+GROUP BY cal.OrderDate, cal.OrderMonth )
+SELECT OrderMonth, OrderDate, PeakQuantitySold
+FROM PeakMonthlyOrders 
+WHERE row_number = 1
+ORDER BY OrderDate;
